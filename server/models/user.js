@@ -1,20 +1,74 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  firstname: { type: String, required: true },
-  lastname: { type: String, required: true },
-  department: { type: String, required: true },
-  identifier: { type: String },
-  gender: { type: String, default: "Not specified" },
-  role: { type: String, default: "User" },
-  age: { type: Number, default: 0 },
-  email: { type: String, default: "notprovided@example.com", unique: true },
-  avatar: {
+  username: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true
+  },
+  password: { 
+    type: String, 
+    required: true 
+  },
+  firstname: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  },
+  lastname: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  },
+  department: { 
+    type: String, 
+    required: true,
+    enum: ['aiml', 'comp', 'extc', 'elect', 'civil', 'mech']
+  },
+  role: { 
+    type: String, 
+    required: true,
+    enum: ['student', 'faculty'],
+    default: 'student'
+  },
+  uid: { 
     type: String,
-    default: '/images/default_profile.jpg' // Updated default profile picture path
+    sparse: true,
+    unique: true
+  },
+  year: {
+    type: String,
+    enum: ['FE', 'SE', 'TE', 'BE', 'NA'],
+    default: 'FE'
+  },
+  isApproved: {
+    type: Boolean,
+    default: function() {
+      return this.role === 'student';
+    }
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-export default mongoose.model("User", userSchema);
+// Drop any existing email index when starting the server
+userSchema.statics.dropEmailIndex = async function() {
+  try {
+    await this.collection.dropIndex('email_1');
+    console.log('Email index dropped successfully');
+  } catch (err) {
+    // Ignore if index doesn't exist
+    if (err.code !== 27) {
+      console.error('Error dropping email index:', err);
+    }
+  }
+};
+
+// Call dropEmailIndex when model is compiled
+const User = mongoose.model("User", userSchema);
+User.dropEmailIndex();
+
+export default User;

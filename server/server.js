@@ -12,6 +12,7 @@ import postRoutes from "./routes/posts.js";
 import noticeRoutes from "./routes/notices.js";
 import userRoutes from "./routes/users.js";
 import commentRoutes from "./routes/comments.js";
+import mongoose from "mongoose";
 
 dotenv.config();
 
@@ -19,11 +20,23 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Database connection
-connectDB().catch(err => {
-  console.error("Database connection failed:", err);
-  process.exit(1);
-});
+// Initialize DB and drop email index
+const initializeDB = async () => {
+  try {
+    await connectDB();
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    if (collections.some(col => col.name === 'users')) {
+      await mongoose.connection.db.collection('users').dropIndex('email_1')
+        .catch(err => {
+          if (err.code !== 27) console.error('Error dropping index:', err);
+        });
+    }
+  } catch (err) {
+    console.error('DB initialization error:', err);
+  }
+};
+
+initializeDB();
 
 // Explicitly configure uploads directory
 const uploadsPath = path.join(__dirname, 'uploads');
@@ -63,44 +76,37 @@ app.use("/api/comments", commentRoutes);
 // User profile route - Fix user lookup
 app.get('/api/auth/users/:username', async (req, res) => {
   try {
-    // Clean and normalize username
-    const searchUsername = req.params.username.toLowerCase().trim();
-    console.log('Looking for user:', searchUsername);
+    const username = req.params.username.toLowerCase().trim();
+    console.log('Looking for user:', username);
 
-    // Find user with case-insensitive search and trim spaces
     const user = await User.findOne({
-      username: { 
-        $regex: new RegExp(`^${searchUsername.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') 
-      }
-    }).select('-password -__v');
+      username: { $regex: new RegExp(`^${username}$`, 'i') }
+    })
+    .select('-password -__v')
+    .lean();
 
     if (!user) {
-      console.log('No user found for:', searchUsername);
+      console.log('No user found for:', username);
       return res.status(404).json({
         success: false,
         message: "User not found"
       });
     }
 
-    console.log('Found user:', user);
-
-    // Find user's posts
+    // Get user's posts
     const posts = await Post.find({ 
       author: user._id,
       status: 'active' 
     })
     .sort({ createdAt: -1 })
-    .populate('author', 'username firstname lastname avatar')
+    .populate('author', 'username firstname lastname')
     .lean();
 
-    console.log(`Found ${posts.length} posts for user:`, user.username);
+    console.log(`Found ${posts.length} posts for user:`, username);
 
     res.json({
       success: true,
-      user: {
-        ...user.toObject(),
-        username: user.username.trim() // Ensure username has no extra spaces
-      },
+      user,
       posts
     });
 
@@ -108,7 +114,7 @@ app.get('/api/auth/users/:username', async (req, res) => {
     console.error('Error in user lookup:', error);
     res.status(500).json({
       success: false,
-      message: "Server error"
+      message: "Server error while fetching profile"
     });
   }
 });

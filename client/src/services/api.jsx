@@ -58,18 +58,20 @@ const ApiService = {
 
   register: async (userData) => {
     try {
-      console.log('Attempting registration with:', userData);
-      const response = await api.post("/api/auth/register", userData); // Updated path
-      console.log('Register response:', response);
-      if (response?.token) {
+      console.log('Sending registration data:', userData);
+      const response = await api.post("/api/auth/register", userData);
+      console.log('Registration response:', response);
+      
+      if (response.success) {
+        // Store token and user data if registration is successful
         localStorage.setItem("token", response.token);
         localStorage.setItem("user", JSON.stringify(response.user));
-        ApiService.setAuthToken(response.token);
       }
+      
       return response;
     } catch (error) {
       console.error("Registration error:", error.response || error);
-      throw error;
+      throw error.response?.data || error;
     }
   },
 
@@ -185,31 +187,23 @@ const ApiService = {
   // Fix profile endpoint
   getUserProfile: async (username) => {
     try {
-      if (!username) throw new Error('Username is required');
-      
-      // Clean and normalize username
+      if (!username) {
+        throw new Error('Username is required');
+      }
+
       const normalizedUsername = username.toLowerCase().trim();
       console.log('Fetching profile for:', normalizedUsername);
 
-      const config = {
-        headers: { 
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      };
-      
-      const response = await api.get(`/api/auth/users/${normalizedUsername}`, config);
-      console.log('Profile response:', response);
+      const response = await api.get(`/api/auth/users/${normalizedUsername}`);
+      console.log('Raw profile response:', response);
 
-      if (!response.success || !response.user) {
-        console.error('Profile fetch failed:', response);
+      if (!response.success) {
         throw new Error(response.message || 'Failed to load profile');
       }
 
       return {
-        user: {
-          ...response.user,
-          username: response.user.username.trim() // Ensure username has no spaces
-        },
+        success: true,
+        user: response.user,
         posts: response.posts || []
       };
     } catch (error) {

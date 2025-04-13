@@ -47,6 +47,21 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
+    const register = async (formData) => {
+        try {
+            const response = await ApiService.register(formData);
+            if (response.success) {
+                return { success: true, message: response.message };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            return { 
+                success: false, 
+                message: error.response?.data?.message || "Registration failed"
+            };
+        }
+    };
+
     const login = async (credentials) => {
         // Simple dev bypass
         if (credentials.username === "dev" && credentials.password === "dev123") {
@@ -65,20 +80,18 @@ export const AuthProvider = ({ children }) => {
 
         try {
             const response = await ApiService.login(credentials);
-            const { token, user } = response;
-            if (!token || !user) {
-                throw new Error("Invalid response from server");
+            if (response.success) {
+                localStorage.setItem("token", response.token);
+                localStorage.setItem("user", JSON.stringify(response.user));
+                ApiService.setAuthToken(response.token);
+                setUser(response.user);
+                return { success: true };
             }
-            localStorage.setItem("token", token);
-            localStorage.setItem("user", JSON.stringify(user));
-            ApiService.setAuthToken(token);
-            setUser(user);
-            return { success: true };
+            return { success: false, message: response.message };
         } catch (error) {
-            console.error("Login error:", error);
             return { 
                 success: false, 
-                message: error.message || "Login failed"
+                message: error.response?.data?.message || "Login failed"
             };
         }
     };
@@ -91,7 +104,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout }}>
+        <AuthContext.Provider value={{ user, loading, register, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

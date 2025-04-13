@@ -14,7 +14,6 @@ function HelpCenter() {
   ];
 
   const contactInfo = {
-    email: "support@vishwaniketan.edu",
     phone: "+91-123-456-7890",
     hours: "Monday - Friday: 9:00 AM - 5:00 PM"
   };

@@ -1,70 +1,126 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from '../models/User.js'; // Ensure this import matches your User model
+import Post from '../models/Post.js'; // Add this import
+import csv from 'csv-parser';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Register a new user
-export const register = async (req, res) => {
-    try {
-        const { username, password, firstname, lastname, department } = req.body;
+const validateStudentUID = async (uid) => {
+  const results = [];
+  const csvPath = path.join(__dirname, '../data/student_uids.csv');
 
-        if (!username || !password || !firstname || !lastname || !department) {
-            return res.status(400).json({ message: "All fields are required." });
+  return new Promise((resolve, reject) => {
+    fs.createReadStream(csvPath)
+      .pipe(csv())
+      .on('data', (data) => results.push(data))
+      .on('end', () => {
+        const validUID = results.find(row => 
+          row.uid === uid && row.status === 'active'
+        );
+        if (!validUID) {
+          resolve({
+            isValid: false,
+            message: "Your UID doesn't match our database. Please check and try again."
+          });
+        } else {
+          resolve({
+            isValid: true,
+            message: "UID verified successfully"
+          });
         }
-
-        const existingUser = await User.findOne({ username });
-        if (existingUser) {
-            return res.status(400).json({ message: "Username already exists." });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({
-            username,
-            password: hashedPassword,
-            firstname,
-            lastname,
-            department,
-        });
-
-        await newUser.save();
-        res.status(201).json({ message: "User registered successfully." });
-    } catch (error) {
-        console.error("Register error:", error);
-        res.status(500).json({ message: "Server error." });
-    }
+      })
+      .on('error', (error) => {
+        console.error('CSV read error:', error);
+        reject(new Error("Error validating UID"));
+      });
+  });
 };
 
-// Login a user
-export const login = async (req, res) => {
+export const register = async (req, res) => {
   try {
-    const { username, password } = req.body;
-    console.log("Login attempt for:", username);
+    const { username, password, firstname, lastname, department, role, uid, year } = req.body;
 
-    if (!username || !password) {
+    // Basic validation
+    if (!username || !password || !firstname || !lastname || !department || !role) {
       return res.status(400).json({
         success: false,
-        message: "Username and password are required"
+        message: "All fields are required."
       });
     }
 
-    const user = await User.findOne({
-      $or: [
-        { username: { $regex: new RegExp(`^${username}$`, "i") } },
-        { email: { $regex: new RegExp(`^${username}$`, "i") } }
-      ]
+    // Create user without any email field
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({
+      username,
+      password: hashedPassword,
+      firstname,
+      lastname,
+      department,
+      role,
+      uid: role === 'student' ? uid : undefined,
+      year: role === 'student' ? year : 'NA',
+      isApproved: role === 'student'
     });
 
+    const savedUser = await newUser.save();
+    
+    // Create and send token
+    const token = jwt.sign(
+      { _id: savedUser._id, username: savedUser.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+    
+    res.status(201).json({
+      success: true,
+      message: role === 'student' ? "Registration successful!" : "Registration request sent for approval.",
+      token,
+      user: {
+        _id: savedUser._id,
+        username: savedUser.username,
+        firstname: savedUser.firstname,
+        lastname: savedUser.lastname,
+        department: savedUser.department,
+        role: savedUser.role,
+        year: savedUser.year
+      }
+    });
+  } catch (error) {
+    console.error("Register error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Registration failed. Please try again."
+    });
+  }
+};
+
+export const login = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    const user = await User.findOne({ username });
     if (!user) {
-      console.log("User not found:", username);
       return res.status(401).json({
         success: false,
         message: "Invalid credentials"
       });
     }
 
-    const isValid = await bcrypt.compare(password, user.password);
-    console.log("Password validation result:", isValid);
+    if (!user.isApproved) {
+      return res.status(401).json({
+        success: false,
+        message: "Your account is pending approval"
+      });
+    }
 
-    if (!isValid) {
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
       return res.status(401).json({
         success: false,
         message: "Invalid credentials"
@@ -86,10 +142,10 @@ export const login = async (req, res) => {
         firstname: user.firstname,
         lastname: user.lastname,
         department: user.department,
-        role: user.role
+        role: user.role,
+        year: user.year
       }
     });
-
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
@@ -142,12 +198,14 @@ export const getCurrentUser = async (req, res) => {
 // Add this new controller function
 export const getUserProfile = async (req, res) => {
     try {
-        const { username } = req.params;
-        console.log('Fetching profile for username:', username);
+        const username = req.params.username.toLowerCase().trim();
+        console.log('Looking up user:', username);
 
-        const user = await User.findOne({ username })
-            .select('-password -__v')
-            .lean();
+        const user = await User.findOne({
+            username: { $regex: new RegExp(`^${username}$`, 'i') }
+        })
+        .select('-password -__v')
+        .lean();
 
         if (!user) {
             return res.status(404).json({
@@ -156,12 +214,26 @@ export const getUserProfile = async (req, res) => {
             });
         }
 
+        console.log('Found user:', user);
+
+        const posts = await Post.find({ 
+            author: user._id,
+            status: 'active' 
+        })
+        .sort({ createdAt: -1 })
+        .populate('author', 'username firstname lastname')
+        .lean();
+
+        console.log(`Found ${posts.length} posts for user:`, username);
+
         res.json({
             success: true,
-            data: user
+            user,
+            posts
         });
+
     } catch (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('Profile fetch error:', error);
         res.status(500).json({
             success: false,
             message: "Server error while fetching profile"

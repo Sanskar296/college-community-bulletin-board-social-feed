@@ -49,6 +49,23 @@ function DefaultProfileView() {
   );
 }
 
+const DepartmentBadge = ({ department }) => {
+  const deptColors = {
+    aiml: "blue",
+    comp: "green",
+    extc: "yellow",
+    elect: "red",
+    civil: "purple",
+    mech: "gray"
+  };
+
+  return (
+    <span className={`px-3 py-1 rounded-full text-sm font-medium bg-${deptColors[department]}-100 text-${deptColors[department]}-800`}>
+      {department.toUpperCase()}
+    </span>
+  );
+};
+
 function Profile() {
   const { user: currentUser } = useContext(AuthContext);
   const [profileData, setProfileData] = useState(null);
@@ -56,36 +73,28 @@ function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { username } = useParams();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
         setLoading(true);
         setError(null);
-        console.log('Fetching profile for username:', username);
+        
+        console.log('Fetching profile for:', username);
+        const response = await ApiService.getUserProfile(username);
+        console.log('Profile API response:', response);
 
-        // Normalize username to match database
-        const normalizedUsername = username?.toLowerCase();
-        if (!normalizedUsername) {
-          throw new Error('Invalid username');
-        }
-
-        const response = await ApiService.getUserProfile(normalizedUsername);
-        console.log('Profile response:', response);
-
-        if (response && response.user) {
+        if (response.success) {
           setProfileData(response.user);
           setPosts(response.posts || []);
         } else {
-          setProfileData(null); // Clear profile data if not found
-          setPosts([]);
+          setError(response.message || "Failed to load profile");
+          setProfileData(null);
         }
       } catch (err) {
-        console.error("Error loading profile:", err);
-        setProfileData(null); // Clear profile data on error
-        setPosts([]);
+        console.error("Profile fetch error:", err);
         setError(err.message || "Failed to load profile");
+        setProfileData(null);
       } finally {
         setLoading(false);
       }
@@ -164,27 +173,77 @@ function Profile() {
               </div>
 
               {profileData && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-gray-800">
-                    <span className="font-medium">Bio:</span>{" "}
-                    {profileData.bio || "No bio provided"}
-                  </p>
-                  <p className="text-gray-800">
-                    <span className="font-medium">Email:</span> {profileData.email}
-                  </p>
-                  <p className="text-gray-800">
-                    <span className="font-medium">Department:</span>{" "}
-                    {profileData.identifier?.toUpperCase() || "Not specified"}
-                  </p>
-                </div>
-              )}
+                <div className="mt-4 space-y-3">
+                  {/* Basic Information */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-gray-700 mb-3">Basic Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">First Name</p>
+                        <p className="font-medium">{profileData.firstname}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Last Name</p>
+                        <p className="font-medium">{profileData.lastname}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Username</p>
+                        <p className="font-medium">@{profileData.username}</p>
+                      </div>
+                    </div>
+                  </div>
 
-              {profileData && (
-                <div className="mt-4 flex items-center text-gray-500">
-                  <FaCalendarAlt className="mr-2" />
-                  <span>
-                    Member since {format(new Date(profileData.createdAt), "MMMM yyyy")}
-                  </span>
+                  {/* Academic Information */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-gray-700 mb-3">Academic Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Department</p>
+                        <DepartmentBadge department={profileData.department} />
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Role</p>
+                        <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                          {profileData.role.charAt(0).toUpperCase() + profileData.role.slice(1)}
+                        </span>
+                      </div>
+                      {profileData.role === 'student' && (
+                        <>
+                          <div>
+                            <p className="text-sm text-gray-600">Year</p>
+                            <p className="font-medium">{profileData.year}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Student UID</p>
+                            <p className="font-medium">{profileData.uid}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Account Information */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-gray-700 mb-3">Account Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600">Account Status</p>
+                        <span className={`inline-block px-2 py-1 rounded text-sm ${
+                          profileData.isApproved 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {profileData.isApproved ? 'Approved' : 'Pending Approval'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Member Since</p>
+                        <p className="font-medium">
+                          {format(new Date(profileData.createdAt), "MMMM yyyy")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
