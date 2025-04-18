@@ -1,69 +1,97 @@
 // context/AuthContext.jsx
 import { createContext, useState, useEffect } from "react";
-import ApiService from "../services/api"; // Fix: Changed from ApiService to api
+import ApiService from "../services";
 
-export const AuthContext = createContext(null); // Initialize with null
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(JSON.parse(localStorage.getItem("user")));
-    const [loading, setLoading] = useState(!user);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    // Add this useEffect for debugging
+    useEffect(() => {
+        console.log('Current user state:', user);
+    }, [user]);
+
+    const verifyAuth = async () => {
+        try {
+            const token = localStorage.getItem("token");
+            if (!token) return;
+
+            setLoading(true);
+            const response = await ApiService.getCurrentUser();
+            
+            if (response?.data) {
+                setUser(response.data);
+                localStorage.setItem("user", JSON.stringify(response.data));
+            }
+        } catch (error) {
+            console.error("Auth verification error:", error);
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            setUser(null);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const verifyAuth = async () => {
-            try {
-                const token = localStorage.getItem("token");
-                if (token) {
-                    ApiService.setAuthToken(token);
-                    const response = await ApiService.getCurrentUser();
-                    setUser(response.data);
-                    localStorage.setItem("user", JSON.stringify(response.data));
-                }
-            } catch (error) {
-                console.error("Auth verification error:", error);
-                localStorage.removeItem("token");
-                localStorage.removeItem("user");
-                ApiService.setAuthToken(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (!user) verifyAuth();
+        verifyAuth();
     }, []);
 
-    // Add development bypass check
+    // Dev bypass check (only for development)
     useEffect(() => {
-        const devBypass = localStorage.getItem("dev_bypass_key");
-        if (devBypass === "vit_dev_2023") {
-            // Set a temporary development user
+        const devBypass = localStorage.getItem("dev_key");
+        if (devBypass === "dev123") {
             const devUser = {
                 _id: "dev_user",
-                username: "developer",
+                username: "dev",
                 role: "admin",
-                // Add any other user properties needed
+                firstname: "Dev",
+                lastname: "Admin",
+                department: "comp"
             };
             setUser(devUser);
             localStorage.setItem("user", JSON.stringify(devUser));
+            setLoading(false);
         }
     }, []);
 
     const register = async (formData) => {
         try {
+            setError(null);
             const response = await ApiService.register(formData);
+            
             if (response.success) {
-                return { success: true, message: response.message };
+                if (formData.role === 'faculty') {
+                    // For faculty, don't auto-login, just show success message
+                    return { 
+                        success: true, 
+                        message: "Faculty registration submitted for approval. Please wait for admin verification.",
+                        isFaculty: true
+                    };
+                }
+                
+                // Auto-login for students
+                localStorage.setItem("token", response.token);
+                localStorage.setItem("user", JSON.stringify(response.user));
+                ApiService.setAuthToken(response.token);
+                setUser(response.user);
+                return { success: true, message: "Registration successful!" };
             }
+            
+            setError(response.message || "Registration failed");
             return { success: false, message: response.message };
         } catch (error) {
-            return { 
-                success: false, 
-                message: error.response?.data?.message || "Registration failed"
-            };
+            const errorMsg = error.response?.data?.message || "Registration failed";
+            setError(errorMsg);
+            return { success: false, message: errorMsg };
         }
     };
 
     const login = async (credentials) => {
-        // Simple dev bypass
+        // Dev bypass
         if (credentials.username === "dev" && credentials.password === "dev123") {
             const devUser = {
                 _id: "dev_user",
@@ -75,11 +103,14 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem("dev_key", "dev123");
             localStorage.setItem("user", JSON.stringify(devUser));
             setUser(devUser);
+            setError(null);
             return { success: true };
         }
 
         try {
+            setError(null);
             const response = await ApiService.login(credentials);
+            
             if (response.success) {
                 localStorage.setItem("token", response.token);
                 localStorage.setItem("user", JSON.stringify(response.user));
@@ -87,25 +118,36 @@ export const AuthProvider = ({ children }) => {
                 setUser(response.user);
                 return { success: true };
             }
+            
+            setError(response.message || "Login failed");
             return { success: false, message: response.message };
         } catch (error) {
-            return { 
-                success: false, 
-                message: error.response?.data?.message || "Login failed"
-            };
+            const errorMsg = error.response?.data?.message || "Login failed";
+            setError(errorMsg);
+            return { success: false, message: errorMsg };
         }
     };
 
     const logout = () => {
         localStorage.removeItem("token");
-        localStorage.removeItem("user"); // Add this line
-        ApiService.setAuthToken(null); // Remove the token on logout
+        localStorage.removeItem("user");
+        localStorage.removeItem("dev_key"); // Also clear dev key on logout
+        ApiService.setAuthToken(null);
         setUser(null);
+        setError(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, register, login, logout }}>
-            {children}
+        <AuthContext.Provider value={{ 
+            user, 
+            loading, 
+            error,
+            register, 
+            login, 
+            logout,
+            setError 
+        }}>
+            {!loading && children}
         </AuthContext.Provider>
     );
 };

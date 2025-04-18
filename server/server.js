@@ -7,6 +7,7 @@ import fs from "fs";
 import connectDB from "./config/db.js";
 import User from "./models/User.js";
 import Post from "./models/Post.js"; // Add Post model import
+import FacultyRequest from "./models/FacultyRequest.js"; // Add FacultyRequest model import
 import authRoutes from "./routes/auth.js";
 import postRoutes from "./routes/posts.js";
 import noticeRoutes from "./routes/notices.js";
@@ -38,6 +39,14 @@ const initializeDB = async () => {
 
 initializeDB();
 
+// Add this with your other models initialization
+const models = { User, Post, FacultyRequest };
+Object.values(models).forEach(model => {
+  if (typeof model.createIndexes === 'function') {
+    model.createIndexes();
+  }
+});
+
 // Explicitly configure uploads directory
 const uploadsPath = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsPath)) {
@@ -47,10 +56,14 @@ if (!fs.existsSync(uploadsPath)) {
 // Middleware
 app.use(express.json());
 app.use(cors({
-  origin: ['http://localhost:3000', process.env.CLIENT_URL].filter(Boolean),
+  origin: [
+    'http://localhost:3000', 
+    'http://localhost:5173', // Vite default dev port
+    process.env.CLIENT_URL
+  ].filter(Boolean),
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"],
   exposedHeaders: ['Content-Type', 'Content-Disposition']
 }));
 
@@ -143,7 +156,7 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`API URL: ${process.env.CLIENT_URL || "http://localhost:3000"}`);
-  console.log(`Database: ${process.env.MONGO_URI || "mongodb://localhost:27017/Vishwaniketan-campus"}`);
+  console.log(`Database: mongodb://127.0.0.1:27017/Vishwaniketan-campus`);
 });
 
 // Handle unhandled promise rejections

@@ -3,7 +3,7 @@
 import { useState, useContext, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { FaImage, FaTrash } from "react-icons/fa"
-import api from "../services/api"
+import ApiService from "../services"
 import { AuthContext } from "../context/AuthContext"
 
 const categories = [
@@ -168,11 +168,16 @@ function CreatePost() {
       }
   
       console.log('Submitting post data...');
-      const response = await api.createPost(formData);
+      const response = await ApiService.createPost(formData);
       console.log('Post creation response:', response);
   
       if (response.success) {
-        navigate(`/post/${response.data._id}`);
+        if (response.data && response.data._id) {
+          navigate(`/post/${response.data._id}`);
+        } else {
+          // If we got success but no post ID, go to home
+          navigate('/home');
+        }
       } else {
         throw new Error(response.message || 'Failed to create post');
       }

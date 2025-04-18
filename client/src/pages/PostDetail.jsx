@@ -4,7 +4,7 @@ import { useState, useEffect, useContext } from "react"
 import { useParams, Link, useNavigate } from "react-router-dom"
 import { formatDistanceToNow } from "date-fns"
 import { FaArrowUp, FaArrowDown, FaComment, FaShare, FaBookmark, FaFlag, FaTrash, FaEdit } from "react-icons/fa"
-import api from "../services/api"
+import ApiService from "../services"
 import { AuthContext } from "../context/AuthContext"
 import Comment from "../components/Comment"
 
@@ -24,7 +24,7 @@ function PostDetail() {
     const fetchPost = async () => {
       try {
         setLoading(true)
-        const response = await api.get(`/posts/${id}`) // Fetch post from backend
+        const response = await ApiService.get(`/posts/${id}`) // Fetch post from backend
         const fetchedPost = response.data
 
         setPost(fetchedPost)
@@ -51,7 +51,7 @@ function PostDetail() {
     }
 
     try {
-      await api.post(`/posts/${id}/vote`, { vote: newStatus }) // Send vote to backend
+      await ApiService.post(`/posts/${id}/vote`, { vote: newStatus }) // Send vote to backend
     } catch (err) {
       console.error("Error voting:", err)
       setVotes(votes)
@@ -65,7 +65,7 @@ function PostDetail() {
     if (!commentContent.trim()) return
 
     try {
-      const response = await api.post(`/posts/${id}/comments`, {
+      const response = await ApiService.post(`/posts/${id}/comments`, {
         content: commentContent,
       })
 
@@ -82,7 +82,7 @@ function PostDetail() {
 
   const handleReply = async (commentId, content) => {
     try {
-      const response = await api.post(`/comments/${commentId}/replies`, {
+      const response = await ApiService.post(`/comments/${commentId}/replies`, {
         content,
       })
 
@@ -109,7 +109,7 @@ function PostDetail() {
     if (!window.confirm("Are you sure you want to delete this post?")) return
 
     try {
-      await api.delete(`/posts/${id}`) // Delete post from backend
+      await ApiService.delete(`/posts/${id}`) // Delete post from backend
       navigate("/")
     } catch (err) {
       console.error("Error deleting post:", err)

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
-import api from "../services/api";
+import ApiService from "../services";
 
 const departments = [
   { id: "all", name: "All Departments" },
@@ -18,6 +18,20 @@ const departments = [
 function CreateNotice() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  // Check permissions when component loads
+  useEffect(() => {
+    // If not logged in, redirect to login
+    if (!user) {
+      navigate("/login", { state: { from: "/create-notice" } });
+      return;
+    }
+    
+    // If logged in but not authorized to create notices, redirect to home
+    if (!(user.role === 'faculty' || user.role === 'admin' || user.username === 'dev')) {
+      navigate('/home');
+    }
+  }, [user, navigate]);
 
   const [title, setTitle] = useState("");
   const [image, setImage] = useState(null);
@@ -109,7 +123,7 @@ function CreateNotice() {
       }
 
       console.log('Submitting notice:', { title, department: selectedDepartment });
-      const response = await api.createNotice(formData);
+      const response = await ApiService.createNotice(formData);
       console.log('Notice creation response:', response);
 
       if (response.success) {
@@ -124,10 +138,6 @@ function CreateNotice() {
       setLoading(false);
     }
   };
-
-  if (!user || user.username.toLowerCase() !== "sanskarkumarfe23") {
-    return <div className="text-center text-red-500">Access Denied: Only 'sanskarkumarFE23' can create notices.</div>;
-  }
 
   return (
     <div className="container mx-auto px-4 py-6">

@@ -1,35 +1,67 @@
 "use client";
 
-import { useState, useContext } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useContext, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
 function Login() {
-  const { login } = useContext(AuthContext);
+  const { login, user, authError } = useContext(AuthContext);
   const navigate = useNavigate();
-
+  const location = useLocation();
+  
   const [formData, setFormData] = useState({ username: "", password: "" });
-  const [error, setError] = useState(null);
+  const [formError, setFormError] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // Check if user is already logged in
+  useEffect(() => {
+    if (user) {
+      // Redirect to home or to the page they were trying to access
+      const from = location.state?.from || "/";
+      navigate(from, { replace: true });
+    }
+  }, [user, navigate, location]);
+  
+  // Show auth context errors if present
+  useEffect(() => {
+    if (authError) {
+      setFormError(authError);
+    }
+  }, [authError]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    // Clear errors when user types
+    setFormError(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    
+    // Basic validation
+    if (!formData.username.trim() || !formData.password) {
+      setFormError("Please enter both username and password");
+      return;
+    }
+    
+    setFormError(null);
     setLoading(true);
 
     try {
       const result = await login(formData);
       if (result.success) {
-        navigate("/");
+        // Redirect to home or to the page they were trying to access
+        const from = location.state?.from || "/";
+        navigate(from, { replace: true });
+      } else if (result.message?.includes("pending approval") || result.message?.includes("not approved")) {
+        setFormError(
+          "Your faculty account is pending admin approval. Please wait for verification or contact the administrator."
+        );
       } else {
-        setError(result.message || "Login failed");
+        setFormError(result.message || "Login failed");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "An error occurred during login");
+      setFormError(err.response?.data?.message || "An error occurred during login");
     } finally {
       setLoading(false);
     }
@@ -39,7 +71,7 @@ function Login() {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-md mx-auto bg-white rounded-md shadow-md p-6">
         <h1 className="text-2xl font-medium mb-6 text-center">Log In</h1>
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-md mb-4">{error}</div>}
+        {formError && <div className="bg-red-50 text-red-600 p-3 rounded-md mb-4">{formError}</div>}
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label htmlFor="username" className="block text-gray-700 mb-2">
@@ -75,7 +107,11 @@ function Login() {
               Forgot your password?
             </Link>
           </div>
-          <button type="submit" className="w-full bg-blue-500 text-white py-2 rounded-md" disabled={loading}>
+          <button 
+            type="submit" 
+            className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 disabled:bg-blue-300" 
+            disabled={loading}
+          >
             {loading ? "Logging in..." : "Log In"}
           </button>
         </form>

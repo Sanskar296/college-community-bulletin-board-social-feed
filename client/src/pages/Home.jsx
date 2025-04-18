@@ -10,7 +10,7 @@ import HelpCenter from "../components/HelpCenter";
 import CategorySidebar from "../components/CategorySidebar";
 import NoticeBoard from "../components/NoticeBoard";
 import PostCard from "../components/PostCard";
-import ApiService from "../services/api"; // Fix: Changed from ApiService to api
+import ApiService from "../services"; // Fixed import
 
 const categories = [
   { id: "all", name: "All Categories" },
@@ -61,13 +61,14 @@ function Home() {
 
         if (response.success) {
           console.log('Setting posts:', response.data.posts);
-          setPosts(response.data.posts);
+          setPosts(response.data.posts || []);
         } else {
           throw new Error(response.message || 'Failed to fetch posts');
         }
       } catch (err) {
         console.error('Error fetching posts:', err);
         setError(err.message || 'Failed to load posts');
+        setPosts([]);
       } finally {
         setLoading(false);
       }
@@ -183,6 +184,21 @@ function Home() {
             {loading ? (
               <div className="text-center py-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 p-4 rounded-lg border border-red-100 text-center">
+                <p className="text-red-500">{error}</p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : posts.length === 0 ? (
+              <div className="bg-gray-50 p-8 rounded-lg border text-center">
+                <p className="text-gray-500 mb-2">No posts found for the selected filters.</p>
+                <p className="text-sm text-gray-400">Try changing the category or department filter.</p>
               </div>
             ) : (
               <div className="space-y-4">

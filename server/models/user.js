@@ -42,6 +42,11 @@ const userSchema = new mongoose.Schema({
     enum: ['FE', 'SE', 'TE', 'BE', 'NA'],
     default: 'FE'
   },
+  status: {
+    type: String,
+    enum: ['pending', 'active', 'rejected'],
+    default: 'active'
+  },
   isApproved: {
     type: Boolean,
     default: function() {

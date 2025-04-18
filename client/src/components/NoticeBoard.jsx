@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import api from "../services/api";
+import ApiService from "../services";
 
 // Add department tabs configuration
 const departments = [
@@ -26,31 +26,56 @@ function NoticeBoard() {
     const fetchNotices = async () => {
       try {
         setLoading(true);
-        const response = await api.getNotices();
-        console.log('Fetched notices:', response); // Debugging log
-        setNotices(response || []);
+        setError(null);
+        const response = await ApiService.getNotices(activeDepartment);
+        console.log('Fetched notices:', response);
+        
+        if (response && Array.isArray(response.notices)) {
+          setNotices(response.notices);
+        } else if (Array.isArray(response)) {
+          setNotices(response);
+        } else {
+          console.error('Unexpected notices response format:', response);
+          setNotices([]);
+          setError("Invalid data format received from server");
+        }
       } catch (err) {
         console.error('Error fetching notices:', err);
         setError("Failed to load notices");
+        setNotices([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchNotices();
-  }, []);
+  }, [activeDepartment]);
 
   const filteredNotices = notices.filter(notice => 
     activeDepartment === "all" || notice.department === activeDepartment
   );
 
   const getImageUrl = (notice) => {
-    if (!notice.image?.path) return null;
-    // Ensure path starts with /uploads/
-    const path = notice.image.path.startsWith('/uploads/') 
-      ? notice.image.path 
-      : `/uploads/${notice.image.filename}`;
-    return `http://localhost:5000${path}`;
+    if (!notice.image) return null;
+    
+    // Handle different image path formats
+    if (typeof notice.image === 'string') {
+      return `http://localhost:5000/uploads/${notice.image}`;
+    }
+    
+    if (notice.image.path) {
+      // Ensure path starts with /uploads/
+      const path = notice.image.path.startsWith('/uploads/') 
+        ? notice.image.path 
+        : `/uploads/${notice.image.path}`;
+      return `http://localhost:5000${path}`;
+    }
+    
+    if (notice.image.filename) {
+      return `http://localhost:5000/uploads/${notice.image.filename}`;
+    }
+    
+    return null;
   };
 
   return (

@@ -112,6 +112,14 @@ export const login = async (req, res) => {
       });
     }
 
+    // Check if faculty account is approved
+    if (user.role === 'faculty' && !user.isApproved) {
+      return res.status(401).json({
+        success: false,
+        message: "Your faculty account is pending approval. Please wait for admin verification."
+      });
+    }
+
     if (!user.isApproved) {
       return res.status(401).json({
         success: false,

@@ -4,7 +4,7 @@ import { useState, useEffect, useContext } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaCalendarAlt, FaEdit } from "react-icons/fa";
 import { format } from "date-fns";
-import ApiService from "../services/api";
+import ApiService from "../services";
 import { AuthContext } from "../context/AuthContext";
 import PostCard from "../components/PostCard";
 
@@ -50,17 +50,21 @@ function DefaultProfileView() {
 }
 
 const DepartmentBadge = ({ department }) => {
-  const deptColors = {
-    aiml: "blue",
-    comp: "green",
-    extc: "yellow",
-    elect: "red",
-    civil: "purple",
-    mech: "gray"
+  if (!department) return null;
+  
+  const deptInfo = {
+    aiml: { bg: "bg-blue-100", text: "text-blue-800" },
+    comp: { bg: "bg-green-100", text: "text-green-800" },
+    extc: { bg: "bg-yellow-100", text: "text-yellow-800" },
+    elect: { bg: "bg-red-100", text: "text-red-800" },
+    civil: { bg: "bg-purple-100", text: "text-purple-800" },
+    mech: { bg: "bg-gray-100", text: "text-gray-800" }
   };
 
+  const { bg, text } = deptInfo[department] || { bg: "bg-blue-100", text: "text-blue-800" };
+
   return (
-    <span className={`px-3 py-1 rounded-full text-sm font-medium bg-${deptColors[department]}-100 text-${deptColors[department]}-800`}>
+    <span className={`px-3 py-1 rounded-full text-sm font-medium ${bg} ${text}`}>
       {department.toUpperCase()}
     </span>
   );
@@ -79,6 +83,27 @@ function Profile() {
       try {
         setLoading(true);
         setError(null);
+        
+        // Special case for the developer account
+        if (username === 'dev') {
+          const devUser = {
+            _id: "dev_user",
+            username: "dev",
+            role: "admin",
+            firstname: "Developer",
+            lastname: "Admin",
+            department: "comp",
+            createdAt: new Date().toISOString(),
+            isApproved: true,
+            status: 'active'
+          };
+          
+          setProfileData(devUser);
+          // Empty posts for dev user initially
+          setPosts([]);
+          setLoading(false);
+          return;
+        }
         
         console.log('Fetching profile for:', username);
         const response = await ApiService.getUserProfile(username);
@@ -203,8 +228,16 @@ function Profile() {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Role</p>
-                        <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                          {profileData.role.charAt(0).toUpperCase() + profileData.role.slice(1)}
+                        <span className={`inline-block ${
+                          profileData.role === 'admin' || profileData.username === 'dev' 
+                            ? 'bg-red-100 text-red-800' 
+                            : profileData.role === 'faculty'
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-blue-100 text-blue-800'
+                        } px-2 py-1 rounded text-sm`}>
+                          {profileData.username === 'dev' 
+                            ? 'Developer' 
+                            : profileData.role.charAt(0).toUpperCase() + profileData.role.slice(1)}
                         </span>
                       </div>
                       {profileData.role === 'student' && (

@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { formatDistanceToNow } from "date-fns"
 import { FaArrowUp, FaArrowDown, FaComment, FaShare, FaBookmark } from "react-icons/fa"
-import api from "../services/api"
+import ApiService from "../services"
 
 function PostCard({ post, isDetailView = false }) {
   const [votes, setVotes] = useState(post.votes);
@@ -24,7 +24,7 @@ function PostCard({ post, isDetailView = false }) {
 
     try {
       // Make API call to update the vote in the backend
-      await api.post(`/posts/${post._id}/vote`, { vote: newStatus })
+      await ApiService.post(`/posts/${post._id}/vote`, { vote: newStatus })
     } catch (err) {
       console.error("Error voting:", err)
       setError("Failed to update vote. Please try again.")

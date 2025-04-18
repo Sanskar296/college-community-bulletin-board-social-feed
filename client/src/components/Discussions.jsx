@@ -4,7 +4,7 @@ import { useState, useContext, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { FaPlus, FaUsers, FaLock, FaUnlock, FaClock } from "react-icons/fa";
 import DiscussionRoom from "./DiscussionRoom";
-import ApiService from "../services/api"; // Fix: Changed from ApiService to api
+import ApiService from "../services"; // Fixed import to use services index
 import CreateDiscussionModal from "./CreateDiscussionModal";
 
 const discussionCategories = [

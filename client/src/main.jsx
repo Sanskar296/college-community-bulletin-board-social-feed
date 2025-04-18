@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter as Router } from 'react-router-dom'
 import App from './App'
 import './styles/globals.css'
 
@@ -8,8 +8,10 @@ const root = document.getElementById('root')
 
 if (root) {
   ReactDOM.createRoot(root).render(
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <React.StrictMode>
+      <Router>
+        <App />
+      </Router>
+    </React.StrictMode>
   )
 }

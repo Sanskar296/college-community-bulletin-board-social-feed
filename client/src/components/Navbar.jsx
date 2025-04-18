@@ -4,6 +4,7 @@ import { useContext, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AuthContext } from "../context/AuthContext"
 import Sidebar from "./CategorySidebar"
+import NotificationBell from "./NotificationBell"
 
 function Navbar() {
   const { user, logout } = useContext(AuthContext)
@@ -16,6 +17,19 @@ function Navbar() {
     navigate("/")
   }
 
+  // Check if user is allowed to create posts
+  const canCreatePost = () => {
+    if (!user) return false;
+    return true; // All logged-in users (student, faculty, dev, admin) can create posts
+  };
+  
+  // Check if user is allowed to create notices
+  const canCreateNotice = () => {
+    if (!user) return false;
+    // Only faculty, admin, and developers can create notices
+    return user.role === 'faculty' || user.role === 'admin' || user.username === 'dev';
+  };
+
   const handlePostRedirect = () => {
     if (user) {
       navigate("/create-post")
@@ -23,6 +37,32 @@ function Navbar() {
       navigate("/login", { state: { from: "/create-post" } })
     }
   }
+
+  const handleNoticeRedirect = () => {
+    if (canCreateNotice()) {
+      navigate("/create-notice")
+    } else {
+      navigate("/login", { state: { from: "/create-notice" } })
+    }
+  }
+
+  const renderAdminMenu = () => {
+    if (user?.role === 'admin' || user?.username === 'dev') {
+      return (
+        <Link
+          to="/admin/faculty-requests"
+          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          onClick={() => setIsMenuOpen(false)}
+        >
+          Manage Faculty Requests
+          <span className="ml-2 px-2 py-1 text-xs bg-red-100 text-red-600 rounded-full">
+            Admin
+          </span>
+        </Link>
+      );
+    }
+    return null;
+  };
 
   return (
     <>
@@ -37,7 +77,7 @@ function Navbar() {
               ☰
             </button>
             <Link to="/home" className="flex items-center space-x-2">
-              <img src="../images/collegelogo.jpg" alt="Vishwaniketan Logo" className="h-10 w-10 rounded-full" />
+              <img src="../images/college_ion.png" alt="Vishwaniketan Logo" className="h-10 w-10 rounded-full" />
               <span className="text-xl font-bold">Vishwaniketan Campus</span>
             </Link>
           </div>
@@ -46,20 +86,26 @@ function Navbar() {
             <Link to="/home" className="hover:text-blue-200">
               Home
             </Link>
-            <button
-              onClick={handlePostRedirect}
-              className="bg-white text-blue-600 px-4 py-1 rounded-full hover:bg-blue-100"
-            >
-              Post
-            </button>
+            {user && (
+              <button
+                onClick={handlePostRedirect}
+                className="bg-white text-blue-600 px-4 py-1 rounded-full hover:bg-blue-100"
+              >
+                Create Post
+              </button>
+            )}
+            {canCreateNotice() && (
+              <button
+                onClick={handleNoticeRedirect}
+                className="bg-yellow-500 text-white px-4 py-1 rounded-full hover:bg-yellow-600"
+              >
+                Create Notice
+              </button>
+            )}
+            {user && <NotificationBell />}
             {user ? (
               <>
-                {user.username === "sanskarkumarFE23" && (
-                  <Link to="/create-notice" className="bg-yellow-500 text-white px-4 py-1 rounded-full hover:bg-yellow-600">
-                    Create Notice
-                  </Link>
-                )}
-                <div className="relative">
+                <div className="relative group">
                   <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
                     className="flex items-center space-x-2 focus:outline-none"
@@ -77,7 +123,7 @@ function Navbar() {
                   </button>
 
                   {isMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                       <Link
                         to={`/profile/${user.username}`}
                         className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
@@ -85,10 +131,11 @@ function Navbar() {
                       >
                         Profile
                       </Link>
+                      {renderAdminMenu()}
                       <button
                         onClick={() => {
-                          handleLogout()
-                          setIsMenuOpen(false)
+                          handleLogout();
+                          setIsMenuOpen(false);
                         }}
                         className="block w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
                       >

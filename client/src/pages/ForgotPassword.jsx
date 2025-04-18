@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import api from "../services/api";
+import ApiService from "../services";
 
 function ForgotPassword() {
   const [emailOrUsername, setEmailOrUsername] = useState("");
@@ -24,7 +24,7 @@ function ForgotPassword() {
       setError(null);
       setMessage(null);
 
-      await api.resetPassword({ emailOrUsername, newPassword });
+      await ApiService.resetPassword({ emailOrUsername, newPassword });
       setMessage("Password updated successfully. You can now log in with your new password.");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to reset password. Please try again.");

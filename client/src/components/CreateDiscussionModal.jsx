@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ApiService from "../services/api";
+import ApiService from "../services";
 
 function CreateDiscussionModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({

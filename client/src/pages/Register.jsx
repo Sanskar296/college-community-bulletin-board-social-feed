@@ -60,19 +60,17 @@ function Register() {
 
     try {
       setLoading(true);
-      
-      if (!formData.department) {
-        setError("Please select a department");
-        return;
-      }
-
-      if (formData.role === "student" && !formData.uid) {
-        setError("Student UID is required");
-        return;
-      }
 
       if (formData.password !== formData.confirmPassword) {
         setError("Passwords do not match");
+        setLoading(false);
+        return;
+      }
+
+      // Validate required fields
+      if (!formData.username || !formData.firstname || !formData.lastname || !formData.department) {
+        setError("Please fill in all required fields");
+        setLoading(false);
         return;
       }
 
@@ -81,10 +79,19 @@ function Register() {
       console.log("Registration result:", result);
 
       if (result.success) {
-        setSuccessMessage(result.message);
-        setTimeout(() => {
-          navigate("/login");
-        }, 2000);
+        if (result.isFaculty) {
+          // For faculty, show message but don't redirect yet
+          setSuccessMessage(result.message);
+          setTimeout(() => {
+            navigate("/login");
+          }, 3000);
+        } else {
+          // For students, redirect immediately to home
+          setSuccessMessage(result.message);
+          setTimeout(() => {
+            navigate("/");
+          }, 1000);
+        }
       } else {
         setError(result.message || "Registration failed");
       }
