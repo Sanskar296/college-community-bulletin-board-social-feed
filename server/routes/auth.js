@@ -5,6 +5,7 @@ import { authenticateToken } from "../middleware/auth.js";
 import FacultyRequest from "../models/FacultyRequest.js";
 import User from "../models/User.js";
 import Post from "../models/Post.js";
+import { refreshToken } from "../controllers/authRefresh.js";
 
 const router = express.Router();
 
@@ -41,6 +42,7 @@ router.post("/register", async (req, res) => {
 
     // If role is faculty, create a faculty request
     if (role === 'faculty') {
+      console.log('Creating faculty request for new user:', savedUser);
       const facultyRequest = new FacultyRequest({
         username: savedUser.username,
         firstname: savedUser.firstname,
@@ -49,7 +51,8 @@ router.post("/register", async (req, res) => {
         userId: savedUser._id,
         status: 'pending'
       });
-      await facultyRequest.save();
+      const savedRequest = await facultyRequest.save();
+      console.log('Faculty request created successfully:', savedRequest);
     }
 
     res.status(201).json({
@@ -125,16 +128,38 @@ router.post("/faculty-request", authenticateToken, async (req, res) => {
 // Get faculty requests (admin only)
 router.get("/faculty-requests", authenticateToken, async (req, res) => {
   try {
+    console.log('Faculty requests endpoint hit, user:', req.user);
+    
     // Allow both "dev" username and users with admin role
     if (req.user.username !== "dev" && req.user.role !== "admin") {
+      console.log('Unauthorized access attempt:', req.user);
       return res.status(403).json({
         success: false,
         message: "Only administrators can access faculty requests"
       });
     }
 
+    // Find all requests and sort by newest first
     const requests = await FacultyRequest.find()
       .sort({ createdAt: -1 });
+    
+    console.log(`Found ${requests.length} faculty requests`);
+    
+    // Print each request for debugging
+    if (requests.length > 0) {
+      requests.forEach((req, i) => {
+        console.log(`Request ${i+1}:`, {
+          id: req._id,
+          username: req.username,
+          name: `${req.firstname} ${req.lastname}`,
+          department: req.department,
+          status: req.status,
+          userId: req.userId
+        });
+      });
+    } else {
+      console.log('No faculty requests found in database');
+    }
     
     res.json({ 
       success: true, 
@@ -236,5 +261,73 @@ router.post("/faculty-requests/:requestId/reject", authenticateToken, async (req
     });
   }
 });
+
+// Test route to create a faculty request (DEVELOPMENT ONLY)
+router.get("/test-create-faculty-request", async (req, res) => {
+  try {
+    console.log('Test route: Creating test faculty request');
+    
+    // First, make sure there's a test faculty user
+    let testUser = await User.findOne({ username: 'testfaculty' });
+    
+    if (!testUser) {
+      console.log('Creating test faculty user');
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      testUser = new User({
+        username: 'testfaculty',
+        password: hashedPassword,
+        firstname: 'Test',
+        lastname: 'Faculty',
+        department: 'comp',
+        role: 'faculty',
+        isApproved: false,
+        status: 'pending'
+      });
+      
+      testUser = await testUser.save();
+      console.log('Test user created:', testUser);
+    }
+    
+    // Check if a request already exists
+    const existingRequest = await FacultyRequest.findOne({ username: 'testfaculty' });
+    
+    if (existingRequest) {
+      console.log('Faculty request already exists:', existingRequest);
+      return res.json({
+        success: true,
+        message: 'Faculty request already exists',
+        request: existingRequest
+      });
+    }
+    
+    // Create a faculty request
+    const facultyRequest = new FacultyRequest({
+      username: testUser.username,
+      firstname: testUser.firstname,
+      lastname: testUser.lastname,
+      department: testUser.department,
+      userId: testUser._id,
+      status: 'pending'
+    });
+    
+    const savedRequest = await facultyRequest.save();
+    console.log('Test faculty request created:', savedRequest);
+    
+    res.json({
+      success: true,
+      message: 'Test faculty request created',
+      request: savedRequest
+    });
+  } catch (error) {
+    console.error('Test route error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating test faculty request'
+    });
+  }
+});
+
+// Route for token refresh
+router.post("/refresh-token", refreshToken);
 
 export default router;

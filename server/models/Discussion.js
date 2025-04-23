@@ -1,26 +1,46 @@
 import mongoose from "mongoose";
 
-const discussionSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  category: { 
-    type: String, 
-    required: true,
-    enum: ['academic', 'projects', 'events', 'general']
+const DiscussionSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    category: {
+      type: String,
+      required: true,
+      enum: ["academic", "projects", "events", "general"],
+      default: "general"
+    },
+    creator: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+    participants: {
+      type: Number,
+      default: 1
+    },
+    isLocked: {
+      type: Boolean,
+      default: false
+    },
+    status: {
+      type: String,
+      enum: ["active", "archived"],
+      default: "active"
+    }
   },
-  creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  isLocked: { type: Boolean, default: false },
-  scheduledTime: { type: Date },
-  messages: [{
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    content: String,
-    timestamp: { type: Date, default: Date.now }
-  }],
-  status: {
-    type: String,
-    enum: ['active', 'scheduled', 'ended'],
-    default: 'active'
-  }
-}, { timestamps: true });
+  { timestamps: true }
+);
 
-export default mongoose.model('Discussion', discussionSchema);
+const Discussion = mongoose.model("Discussion", DiscussionSchema);
+
+export default Discussion;

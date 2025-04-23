@@ -36,11 +36,18 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+  const allowedTypes = [
+    'image/jpeg', 
+    'image/jpg', 
+    'image/png', 
+    'image/gif',
+    'image/webp',
+    'image/svg+xml'
+  ];
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type, only JPEG and PNG is allowed!'), false);
+    cb(new Error('Invalid file type, only JPEG, PNG, GIF, WEBP, and SVG are allowed!'), false);
   }
 };
 
@@ -50,51 +57,71 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-// Create a new notice (restricted to 'sanskarkumarFE23')
+// Create a new notice (restricted to faculty, admin and dev)
 router.post("/", verifyToken, upload.single('image'), async (req, res) => {
   try {
     console.log('Notice creation request:', {
       body: req.body,
       file: req.file,
-      user: req.user
+      user: req.user ? {
+        _id: req.user._id,
+        username: req.user.username,
+        role: req.user.role
+      } : null
     });
 
     // Validate user
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ 
+    if (!req.user || !req.user._id) {
+      console.log('No user found in request');
+      return res.status(401).json({ 
         success: false, 
-        message: "User not found" 
+        message: "Authentication required" 
       });
     }
 
-    // Check authorization
-    if (user.username.toLowerCase() !== "sanskarkumarfe23") {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Only sanskarkumarFE23 can create notices" 
-      });
+    let authorId = null;
+    
+    // Handle special case for dev user
+    if (req.user.username === 'dev') {
+      console.log('Dev user detected - using mock ObjectId for author');
+      // Use a valid MongoDB ObjectId for the dev user (24 characters hex string)
+      authorId = '000000000000000000000000';
+      console.log('Using mock ObjectId:', authorId);
+    } else {
+      // For non-dev users, validate from database
+      const user = await User.findById(req.user._id);
+      if (!user) {
+        return res.status(404).json({ 
+          success: false, 
+          message: "User not found" 
+        });
+      }
+      
+      // Check authorization - allow faculty, admin, and dev users
+      if (!(user.role === 'faculty' || user.role === 'admin')) {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Only faculty, admin, and dev users can create notices" 
+        });
+      }
+      
+      // Set author ID from user
+      authorId = user._id;
     }
 
     console.log('Received file:', req.file); // Debug log
     
-    // Validate file
+    // Validate file - make it optional
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "Image is required"
-      });
+      console.log('No image provided for notice');
     }
 
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
-    console.log('Generated image URL:', imageUrl);
-
-    // Create notice with correct image path
+    // Create notice with correct image path and author ID
     const notice = new Notice({
       title: req.body.title,
       content: req.body.content || "",
       department: req.body.department || "all",
-      author: user._id,
+      author: authorId,
       image: req.file ? {
         filename: req.file.filename,
         path: `/uploads/${req.file.filename}`,
@@ -102,17 +129,39 @@ router.post("/", verifyToken, upload.single('image'), async (req, res) => {
       } : null
     });
 
-    const savedNotice = await notice.save();
-    console.log('Saved notice:', savedNotice); // Debug log
-
-    // Populate author details
-    await savedNotice.populate('author', 'username firstname lastname');
-
-    res.status(201).json({
-      success: true,
-      data: savedNotice
+    console.log('Saving notice to database:', {
+      title: notice.title,
+      department: notice.department,
+      author: notice.author,
+      hasImage: !!notice.image
     });
+    
+    const savedNotice = await notice.save();
+    console.log('Saved notice with ID:', savedNotice._id);
 
+    // For dev user, we skip the populate since the author doesn't exist in DB
+    if (req.user.username === 'dev') {
+      // Add mock author data for dev user
+      savedNotice._doc.author = {
+        _id: authorId,
+        username: 'dev',
+        firstname: 'Dev',
+        lastname: 'User'
+      };
+      
+      res.status(201).json({
+        success: true,
+        data: savedNotice
+      });
+    } else {
+      // Populate author details for regular users
+      await savedNotice.populate('author', 'username firstname lastname');
+      
+      res.status(201).json({
+        success: true,
+        data: savedNotice
+      });
+    }
   } catch (error) {
     console.error('Notice creation error:', error);
     res.status(500).json({ 
@@ -126,7 +175,16 @@ router.post("/", verifyToken, upload.single('image'), async (req, res) => {
 // Get all notices
 router.get("/", async (req, res) => {
   try {
-    const notices = await Notice.find()
+    const { department } = req.query;
+    const filter = {};
+    
+    if (department && department !== 'all') {
+      filter.department = department;
+    }
+    
+    console.log('Get notices request with filter:', filter);
+    
+    const notices = await Notice.find(filter)
       .sort({ createdAt: -1 })
       .populate('author', 'firstname lastname username')
       .lean();
@@ -136,7 +194,8 @@ router.get("/", async (req, res) => {
       ...notice,
       image: notice.image ? {
         ...notice.image,
-        path: notice.image.path // Keep the original path
+        path: notice.image.path, // Keep the original path
+        fullUrl: `${process.env.SERVER_URL || 'http://localhost:5000'}${notice.image.path}`
       } : null
     }));
 
@@ -146,7 +205,13 @@ router.get("/", async (req, res) => {
       imagePath: n.image?.path
     })));
 
-    res.json(noticesWithFullUrls);
+    // Use same response format as the controller
+    res.json({
+      notices: noticesWithFullUrls,
+      totalNotices: notices.length,
+      currentPage: 1,
+      totalPages: 1
+    });
   } catch (error) {
     console.error('Get notices error:', error);
     res.status(500).json({ 

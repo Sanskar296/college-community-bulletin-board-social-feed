@@ -13,7 +13,9 @@ import postRoutes from "./routes/posts.js";
 import noticeRoutes from "./routes/notices.js";
 import userRoutes from "./routes/users.js";
 import commentRoutes from "./routes/comments.js";
+import discussionRoutes from "./routes/discussions.js";
 import mongoose from "mongoose";
+import notificationRoutes from "./routes/notifications.js";
 
 dotenv.config();
 
@@ -85,6 +87,8 @@ app.use("/api/posts", postRoutes);
 app.use("/api/notices", noticeRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/comments", commentRoutes);
+app.use("/api/discussions", discussionRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // User profile route - Fix user lookup
 app.get('/api/auth/users/:username', async (req, res) => {
@@ -112,10 +116,11 @@ app.get('/api/auth/users/:username', async (req, res) => {
       status: 'active' 
     })
     .sort({ createdAt: -1 })
-    .populate('author', 'username firstname lastname')
+    .populate('author', 'username firstname lastname year uid')
     .lean();
 
     console.log(`Found ${posts.length} posts for user:`, username);
+    console.log('User data includes year and uid:', user.year, user.uid);
 
     res.json({
       success: true,

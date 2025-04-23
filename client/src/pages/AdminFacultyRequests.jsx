@@ -10,31 +10,92 @@ function AdminFacultyRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
+  // First useEffect just for authentication check
   useEffect(() => {
-    // Check if user is admin or dev
-    if (!user || (user.username !== "dev" && user.role !== "admin")) {
-      navigate("/");
-      return;
-    }
+    const checkAuth = async () => {
+      console.log('Checking auth for admin page, user:', user);
+      
+      // Wait a moment to ensure user data is loaded
+      setTimeout(() => {
+        if (!user) {
+          console.log('No user found, waiting...');
+          // Give it more time before redirecting
+          setTimeout(() => {
+            if (!user) {
+              console.log('Still no user, redirecting to home');
+              navigate("/");
+              return;
+            }
+            setAuthChecked(true);
+          }, 1000);
+        } else if (user.username !== "dev" && user.role !== "admin") {
+          console.log('User is not admin or dev, redirecting to home');
+          navigate("/");
+          return;
+        } else {
+          console.log('User is authorized:', user);
+          setAuthChecked(true);
+        }
+      }, 500);
+    };
     
-    fetchRequests();
+    checkAuth();
   }, [user, navigate]);
+  
+  // Second useEffect to fetch data only after auth is confirmed
+  useEffect(() => {
+    if (authChecked && user) {
+      fetchRequests();
+    }
+  }, [authChecked, user]);
 
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      const response = await ApiService.getFacultyRequests();
-      console.log("Faculty requests:", response);
+      console.log('Fetching faculty requests...');
       
-      if (response && response.requests) {
+      // Add debug info about current user
+      console.log('Current user:', user);
+      
+      // Debug token info
+      const token = localStorage.getItem('token');
+      const devKey = localStorage.getItem('dev_key');
+      console.log('Auth token exists:', !!token);
+      console.log('Dev key exists:', !!devKey);
+      
+      // Ensure token is set in API service
+      if (user && user.username === "dev" && devKey === "dev123") {
+        console.log('Setting dev token for API requests');
+        ApiService.setAuthToken("dev_token");
+      } else if (token) {
+        console.log('Setting user token for API requests:', token.substring(0, 10) + '...');
+        ApiService.setAuthToken(token);
+      } else {
+        console.error('No authentication token available');
+        setError("Authentication error. Please log in again.");
+        setLoading(false);
+        return;
+      }
+      
+      const response = await ApiService.getFacultyRequests();
+      console.log("Faculty requests response:", response);
+      
+      if (response && response.success && response.requests) {
+        console.log("Setting requests:", response.requests);
         setRequests(response.requests);
       } else {
+        console.log("No requests found or response error:", response);
         setRequests([]);
+        if (response && !response.success) {
+          setError(response.message || "Failed to load requests");
+        }
       }
     } catch (err) {
       console.error("Error fetching faculty requests:", err);
       setError("Failed to load requests. " + (err.message || ""));
+      setRequests([]);
     } finally {
       setLoading(false);
     }

@@ -20,6 +20,29 @@ export const AuthProvider = ({ children }) => {
             if (!token) return;
 
             setLoading(true);
+            
+            // Try to refresh the token first if it exists
+            try {
+                const refreshResponse = await ApiService.post("/api/auth/refresh-token", {}, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                
+                if (refreshResponse && refreshResponse.success) {
+                    console.log('Token refreshed during initialization');
+                    localStorage.setItem("token", refreshResponse.token);
+                    localStorage.setItem("user", JSON.stringify(refreshResponse.user));
+                    ApiService.setAuthToken(refreshResponse.token);
+                    setUser(refreshResponse.user);
+                    return; // We're done if token refresh succeeds
+                }
+            } catch (refreshError) {
+                console.log('Token refresh failed, falling back to current user fetch:', refreshError);
+                // Continue with normal user fetch if refresh fails
+            }
+            
+            // If refresh fails or doesn't exist, try getting current user
             const response = await ApiService.getCurrentUser();
             
             if (response?.data) {
@@ -45,7 +68,7 @@ export const AuthProvider = ({ children }) => {
         const devBypass = localStorage.getItem("dev_key");
         if (devBypass === "dev123") {
             const devUser = {
-                _id: "dev_user",
+                _id: "000000000000000000000000", // Valid MongoDB ObjectId
                 username: "dev",
                 role: "admin",
                 firstname: "Dev",
@@ -93,17 +116,29 @@ export const AuthProvider = ({ children }) => {
     const login = async (credentials) => {
         // Dev bypass
         if (credentials.username === "dev" && credentials.password === "dev123") {
+            console.log('Dev login detected - setting up dev account');
             const devUser = {
-                _id: "dev_user",
-                username: "developer",
+                _id: "000000000000000000000000", // Valid MongoDB ObjectId
+                username: "dev",
                 role: "admin",
                 firstname: "Dev",
-                lastname: "User"
+                lastname: "User",
+                department: "comp" // Add department for consistency
             };
+            
+            // Set the dev key and auth token
             localStorage.setItem("dev_key", "dev123");
             localStorage.setItem("user", JSON.stringify(devUser));
+            localStorage.setItem("token", "dev_token");
+            
+            // Also set in API headers
+            ApiService.setAuthToken("dev_token");
+            
+            // Update state
+            console.log('Dev user state set:', devUser);
             setUser(devUser);
             setError(null);
+            
             return { success: true };
         }
 

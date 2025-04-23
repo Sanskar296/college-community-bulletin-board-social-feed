@@ -54,6 +54,34 @@ export const register = async (req, res) => {
       });
     }
 
+    // For students, validate UID against the CSV file
+    if (role === 'student') {
+      if (!uid) {
+        return res.status(400).json({
+          success: false,
+          message: "Student UID is required for student accounts."
+        });
+      }
+
+      // Validate UID against the CSV
+      const uidValidation = await validateStudentUID(uid);
+      if (!uidValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: uidValidation.message
+        });
+      }
+
+      // Check if UID is already in use
+      const existingUser = await User.findOne({ uid });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "This Student UID is already registered. Please contact support if you need assistance."
+        });
+      }
+    }
+
     // Create user without any email field
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
@@ -74,7 +102,7 @@ export const register = async (req, res) => {
     const token = jwt.sign(
       { _id: savedUser._id, username: savedUser.username },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "30d" }
     );
     
     res.status(201).json({
@@ -88,7 +116,8 @@ export const register = async (req, res) => {
         lastname: savedUser.lastname,
         department: savedUser.department,
         role: savedUser.role,
-        year: savedUser.year
+        year: savedUser.year,
+        uid: role === 'student' ? uid : undefined
       }
     });
   } catch (error) {
@@ -138,7 +167,7 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       { _id: user._id, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "30d" }
     );
 
     res.status(200).json({
@@ -151,7 +180,8 @@ export const login = async (req, res) => {
         lastname: user.lastname,
         department: user.department,
         role: user.role,
-        year: user.year
+        year: user.year,
+        uid: user.role === 'student' ? user.uid : undefined
       }
     });
   } catch (error) {

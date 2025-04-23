@@ -4,6 +4,7 @@ import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import ApiService from "../services";
+import "../styles/Notice.css";
 
 const departments = [
   { id: "all", name: "All Departments" },
@@ -18,6 +19,7 @@ const departments = [
 function CreateNotice() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [isDevMode, setIsDevMode] = useState(false);
 
   // Check permissions when component loads
   useEffect(() => {
@@ -30,6 +32,27 @@ function CreateNotice() {
     // If logged in but not authorized to create notices, redirect to home
     if (!(user.role === 'faculty' || user.role === 'admin' || user.username === 'dev')) {
       navigate('/home');
+      return;
+    }
+    
+    // Debug authentication
+    const token = localStorage.getItem('token');
+    const devKey = localStorage.getItem('dev_key');
+    
+    // Check if in dev mode
+    const devMode = user && user.username === "dev" && devKey === "dev123";
+    setIsDevMode(devMode);
+    
+    console.log('Create Notice - Current user:', user);
+    console.log('Create Notice - Has auth token:', !!token);
+    console.log('Create Notice - Is dev user:', devMode);
+    
+    // Set token in API service
+    if (devMode) {
+      ApiService.setAuthToken("dev_token");
+      console.log('🔧 DEV MODE ACTIVE - Using development token');
+    } else if (token) {
+      ApiService.setAuthToken(token);
     }
   }, [user, navigate]);
 
@@ -39,6 +62,8 @@ function CreateNotice() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackType, setFeedbackType] = useState("");
 
   const allowedImageTypes = [
     'image/jpeg',
@@ -106,8 +131,10 @@ function CreateNotice() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!title.trim() || !image) {
-      setError("Please provide both a title and an image.");
+    if (!title.trim()) {
+      setError("Please provide a title for the notice.");
+      setFeedbackMessage("Please provide a title for the notice");
+      setFeedbackType("error");
       return;
     }
 
@@ -115,25 +142,82 @@ function CreateNotice() {
       setLoading(true);
       setError(null);
 
+      // Get current auth token and refresh if needed
+      const token = localStorage.getItem('token');
+      const devKey = localStorage.getItem('dev_key');
+      
+      if (!token && !devKey) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+      
+      // Ensure token is set
+      if (isDevMode) {
+        console.log('🔧 DEV MODE - Using dev token for notice creation');
+        ApiService.setAuthToken("dev_token");
+      } else if (token) {
+        console.log('Using regular token for notice creation');
+        ApiService.setAuthToken(token);
+      }
+
       const formData = new FormData();
-      formData.append("title", title);
+      formData.append("title", title.trim());
       formData.append("department", selectedDepartment);
       if (image) {
         formData.append("image", image);
       }
 
-      console.log('Submitting notice:', { title, department: selectedDepartment });
+      if (isDevMode) {
+        console.log('🔧 DEV MODE - Submission data:', { 
+          title, 
+          department: selectedDepartment,
+          imageDetails: image ? {
+            name: image.name,
+            type: image.type,
+            size: `${(image.size / 1024).toFixed(2)} KB`
+          } : 'No image'
+        });
+      }
+      
       const response = await ApiService.createNotice(formData);
-      console.log('Notice creation response:', response);
+      
+      if (isDevMode) {
+        console.log('🔧 DEV MODE - API Response:', response);
+      }
 
       if (response.success) {
-        navigate("/");
+        setFeedbackMessage("Notice posted successfully!");
+        setFeedbackType("success");
+        setTimeout(() => {
+          navigate("/");
+        }, 2000);
       } else {
         throw new Error(response.message || "Failed to create notice");
       }
     } catch (err) {
       console.error('Notice creation error:', err);
-      setError(err.message || "Failed to create notice. Please try again.");
+      
+      if (isDevMode) {
+        console.log('🔧 DEV MODE - Error details:', {
+          message: err.message,
+          stack: err.stack,
+          name: err.name
+        });
+      }
+      
+      // Special handling for auth errors
+      if (err.message && err.message.includes('token')) {
+        setError("Your session has expired. Please log in again.");
+        setFeedbackMessage("Your session has expired. Please log in again.");
+        setFeedbackType("error");
+        setTimeout(() => {
+          localStorage.removeItem('token');
+          navigate('/login', { state: { from: '/create-notice' } });
+        }, 3000);
+      } else {
+        setError(err.message || "Failed to create notice. Please try again.");
+        setFeedbackMessage(err.message || "Failed to create notice");
+        setFeedbackType("error");
+      }
     } finally {
       setLoading(false);
     }
@@ -153,6 +237,7 @@ function CreateNotice() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full p-2 border rounded-md"
+              placeholder="Enter notice title"
               required
             />
           </div>
@@ -171,7 +256,6 @@ function CreateNotice() {
                     accept=".jpg,.jpeg,.png,.gif,.webp,.svg"
                     onChange={handleImageChange}
                     className="hidden"
-                    required
                   />
                 </label>
               </div>
@@ -190,12 +274,26 @@ function CreateNotice() {
           </div>
           <button
             type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded-md"
+            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
             disabled={loading}
           >
             {loading ? "Posting..." : "Post Notice"}
           </button>
         </form>
+        
+        {/* Feedback Message */}
+        {feedbackMessage && (
+          <div className={`feedback-message ${feedbackType}`}>
+            {feedbackMessage}
+          </div>
+        )}
+        
+        {/* Dev Mode Indicator */}
+        {isDevMode && (
+          <div className="dev-mode-indicator">
+            DEV MODE ACTIVE
+          </div>
+        )}
       </div>
     </div>
   );

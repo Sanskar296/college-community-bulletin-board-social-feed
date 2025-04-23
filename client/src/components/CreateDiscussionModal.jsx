@@ -5,7 +5,7 @@ function CreateDiscussionModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     name: "",
     category: "general",
-    scheduledTime: "",
+    description: "",
     isLocked: false
   });
   const [loading, setLoading] = useState(false);
@@ -18,10 +18,28 @@ function CreateDiscussionModal({ onClose, onSuccess }) {
 
     try {
       const response = await ApiService.createDiscussion(formData);
-      onSuccess(response.data);
-      onClose();
+      
+      if (response && response.success && response.data) {
+        // Format the data to match component expectations
+        const formattedRoom = {
+          id: response.data._id,
+          name: response.data.name,
+          category: response.data.category,
+          description: response.data.description,
+          creator: response.data.creator,
+          participants: response.data.participants || 1,
+          isLocked: response.data.isLocked,
+          status: response.data.status
+        };
+        
+        onSuccess(formattedRoom);
+        onClose();
+      } else {
+        setError(response?.message || "Failed to create discussion room");
+      }
     } catch (err) {
-      setError(err.message || "Failed to create discussion");
+      console.error("Error creating discussion:", err);
+      setError(err.message || "Failed to create discussion room");
     } finally {
       setLoading(false);
     }
@@ -40,6 +58,7 @@ function CreateDiscussionModal({ onClose, onSuccess }) {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full p-2 border rounded-md"
+              placeholder="Enter a name for your discussion room"
               required
             />
           </div>
@@ -59,12 +78,13 @@ function CreateDiscussionModal({ onClose, onSuccess }) {
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Scheduled Time</label>
-            <input
-              type="datetime-local"
-              value={formData.scheduledTime}
-              onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+            <label className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full p-2 border rounded-md"
+              placeholder="Describe what this discussion room is about"
+              rows={3}
             />
           </div>
 

@@ -1,6 +1,7 @@
 import Post from "../models/Post.js"
 import Comment from "../models/Comment.js"
 import Vote from "../models/Vote.js"
+import mongoose from "mongoose"
 
 // In-memory cache for posts
 let cachedPosts = [];
@@ -13,8 +14,21 @@ export const createPost = async (req, res) => {
     console.log("Create Post Request:", {
       body: req.body,
       file: req.file,
-      user: req.user
+      user: req.user ? {
+        _id: req.user._id,
+        username: req.user.username,
+        role: req.user.role
+      } : null
     });
+
+    // Ensure user is authenticated
+    if (!req.user || !req.user._id) {
+      console.error('User not authenticated or missing _id');
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required."
+      });
+    }
 
     const { title, content, category, department } = req.body;
 
@@ -46,7 +60,7 @@ export const createPost = async (req, res) => {
     });
 
     const savedPost = await newPost.save();
-    console.log("Saved post:", savedPost);
+    console.log("Saved post:", savedPost._id);
 
     // Populate author details
     await savedPost.populate('author', 'username firstname lastname');
@@ -121,26 +135,89 @@ export const getPosts = async (req, res) => {
 // Get a single post
 export const getPost = async (req, res) => {
   try {
+    console.log(`Fetching post with ID: ${req.params.id}`);
     const { id } = req.params;
 
-    const post = await Post.findById(id)
-      .populate("author", "username avatar")
-      .populate({
-        path: "comments",
-        populate: {
-          path: "author",
-          select: "username avatar",
-        },
+    // Check if valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Invalid post ID format" 
       });
-
-    if (!post) {
-      return res.status(404).json({ message: "Post not found." });
     }
 
-    res.json(post);
+    // Find post WITHOUT trying to populate the virtual comments field
+    const post = await Post.findById(id)
+      .populate("author", "username firstname lastname avatar")
+      .lean();
+
+    // Check if post exists
+    if (!post) {
+      console.log(`Post not found: ${id}`);
+      return res.status(404).json({ 
+        success: false,
+        message: "Post not found" 
+      });
+    }
+    
+    // Format image URL if exists
+    if (post.image && post.image.path) {
+      post.image.fullUrl = `${process.env.SERVER_URL || 'http://localhost:5000'}${post.image.path}`;
+    }
+    
+    // Fetch ALL comments for this post, both top-level and replies
+    const allComments = await Comment.find({ post: id })
+      .sort({ createdAt: -1 })
+      .populate("author", "username firstname lastname avatar")
+      .lean();
+    
+    console.log(`Found ${allComments.length} total comments for post ${id}`);
+    
+    // Separate top-level comments and replies
+    const topLevelComments = [];
+    const repliesMap = {};
+    
+    // Group all replies by their parent ID
+    allComments.forEach(comment => {
+      if (!comment.parent) {
+        // This is a top-level comment
+        topLevelComments.push({
+          ...comment,
+          replies: [] // Initialize an empty replies array
+        });
+      } else {
+        // This is a reply
+        if (!repliesMap[comment.parent]) {
+          repliesMap[comment.parent] = [];
+        }
+        repliesMap[comment.parent].push(comment);
+      }
+    });
+    
+    // Add replies to their parent comments
+    topLevelComments.forEach(comment => {
+      if (repliesMap[comment._id]) {
+        comment.replies = repliesMap[comment._id];
+      }
+    });
+    
+    // Manually add the comments to the post object
+    post.comments = topLevelComments;
+    
+    console.log(`Successfully organized comments: ${topLevelComments.length} top-level comments with nested replies`);
+    
+    // Return post with success status
+    res.json({
+      success: true,
+      data: post
+    });
   } catch (error) {
     console.error("Get post error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch post details",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

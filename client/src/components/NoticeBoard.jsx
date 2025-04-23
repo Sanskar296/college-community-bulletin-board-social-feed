@@ -58,6 +58,11 @@ function NoticeBoard() {
   const getImageUrl = (notice) => {
     if (!notice.image) return null;
     
+    // If the fullUrl is provided directly (new format from server)
+    if (notice.image.fullUrl) {
+      return notice.image.fullUrl;
+    }
+    
     // Handle different image path formats
     if (typeof notice.image === 'string') {
       return `http://localhost:5000/uploads/${notice.image}`;

@@ -16,12 +16,12 @@ const PostSchema = new mongoose.Schema(
       path: String,
       mimetype: {
         type: String,
-        enum: ['image/jpeg', 'image/png', 'image/jpg'],
+        enum: ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'],
         validate: {
           validator: function(v) {
-            return ['image/jpeg', 'image/png', 'image/jpg'].includes(v);
+            return ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'].includes(v);
           },
-          message: props => `${props.value} is not a valid image format!`
+          message: props => `${props.value} is not a valid image format! Only JPG, JPEG, PNG, GIF, WEBP, and SVG are allowed.`
         }
       }
     },
@@ -29,8 +29,24 @@ const PostSchema = new mongoose.Schema(
     commentCount: { type: Number, default: 0 },
     status: { type: String, enum: ["active", "inactive"], default: "active" },
   },
-  { timestamps: true }
+  { 
+    timestamps: true, 
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true } 
+  }
 );
+
+// Virtual field for comments - this lets us populate comments without storing them in the post document
+PostSchema.virtual('comments', {
+  ref: 'Comment',
+  localField: '_id',
+  foreignField: 'post'
+});
+
+// Add virtual for user vote (to be implemented when votes are added)
+PostSchema.virtual('userVote').get(function() {
+  return 0; // Default value, will be replaced when votes are implemented
+});
 
 const Post = mongoose.model("Post", PostSchema);
 

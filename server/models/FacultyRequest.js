@@ -23,6 +23,13 @@ const facultyRequestSchema = new mongoose.Schema({
     required: true,
     enum: ['aiml', 'comp', 'extc', 'elect', 'civil', 'mech']
   },
+  
+  // Reference to user
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
 
   // Request Status
   status: {

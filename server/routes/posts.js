@@ -6,6 +6,8 @@ import fs from "fs"
 import { createPost, getPosts, getPost, updatePost, deletePost, votePost } from "../controllers/posts.js"
 import { createComment } from "../controllers/comments.js"
 import { verifyToken } from "../middleware/auth.js"
+import Post from "../models/Post.js"
+import User from "../models/User.js"
 
 const router = express.Router()
 
@@ -32,11 +34,18 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    const allowedMimeTypes = ["image/jpeg", "image/png"]
+    const allowedMimeTypes = [
+      "image/jpeg", 
+      "image/png", 
+      "image/jpg", 
+      "image/gif", 
+      "image/webp", 
+      "image/svg+xml"
+    ];
     if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true)
     } else {
-      cb(new Error("Invalid file type. Only JPEG and PNG are allowed."))
+      cb(new Error("Invalid file type. Only JPEG, PNG, GIF, WEBP, and SVG are allowed."))
     }
   },
 })
@@ -68,12 +77,22 @@ router.post("/", verifyToken, upload.single("image"), async (req, res) => {
       });
     }
 
+    // Handle special case for dev user
+    let authorId = req.user._id;
+    if (req.user.username === 'dev') {
+      console.log('Dev user detected - using mock ObjectId for author');
+      // Use a valid MongoDB ObjectId for the dev user (24 characters hex string)
+      authorId = '000000000000000000000000';
+      console.log('Using mock ObjectId:', authorId);
+    }
+
+    // Create new post object
     const post = new Post({
       title: req.body.title,
       content: req.body.content,
       category: req.body.category,
       department: req.body.department || "all",
-      author: req.user._id,
+      author: authorId,
       image: req.file ? {
         filename: req.file.filename,
         path: `/uploads/${req.file.filename}`,
@@ -81,20 +100,40 @@ router.post("/", verifyToken, upload.single("image"), async (req, res) => {
       } : null
     });
 
+    console.log('Saving post to database:', post);
     const savedPost = await post.save();
-    await savedPost.populate('author', 'username firstname lastname');
-
-    res.status(201).json({
-      success: true,
-      data: savedPost
-    });
+    console.log('Post saved successfully with ID:', savedPost._id);
+    
+    // For dev user, we skip the populate since the author doesn't exist in DB
+    if (req.user.username === 'dev') {
+      // Add mock author data for dev user
+      savedPost._doc.author = {
+        _id: authorId,
+        username: 'dev',
+        firstname: 'Dev',
+        lastname: 'User'
+      };
+      
+      res.status(201).json({
+        success: true,
+        data: savedPost
+      });
+    } else {
+      // Populate author details for regular users
+      await savedPost.populate('author', 'username firstname lastname');
+      console.log('Populated post author:', savedPost.author);
+  
+      res.status(201).json({
+        success: true,
+        data: savedPost
+      });
+    }
 
   } catch (error) {
     console.error('Post creation error:', error);
     res.status(500).json({
-      success: true, // Changed to true to prevent error display
-      data: null,
-      message: "Post created but there might be some missing data"
+      success: false, // Changed to false to show actual error
+      message: "Failed to create post: " + error.message
     });
   }
 });

@@ -3,6 +3,7 @@ import bcrypt from "bcrypt"; // For password hashing
 import jwt from "jsonwebtoken"; // For JWT authentication
 import User from "../models/User.js"; // Ensure this matches your User model
 import { authenticateToken } from "../middleware/auth.js"; // Correctly import authenticateToken
+import { verifyToken } from "../middleware/auth.js"; // Import the verifyToken middleware
 
 const router = express.Router();
 

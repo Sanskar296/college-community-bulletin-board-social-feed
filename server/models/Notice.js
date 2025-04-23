@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { notifyAllUsers } from "../utils/notificationUtils.js";
 
 const noticeSchema = new mongoose.Schema({
   title: { type: String, required: true },
@@ -8,12 +9,12 @@ const noticeSchema = new mongoose.Schema({
     path: String,
     mimetype: {
       type: String,
-      enum: ['image/jpeg', 'image/png', 'image/jpg'],
+      enum: ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'],
       validate: {
         validator: function(v) {
-          return ['image/jpeg', 'image/png', 'image/jpg'].includes(v);
+          return ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp', 'image/svg+xml'].includes(v);
         },
-        message: props => `${props.value} is not a valid image format! Only JPG, JPEG and PNG are allowed.`
+        message: props => `${props.value} is not a valid image format! Only JPG, JPEG, PNG, GIF, WEBP, and SVG are allowed.`
       }
     },
     url: String,

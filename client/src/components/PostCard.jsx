@@ -143,10 +143,19 @@ function PostCard({ post, isDetailView = false }) {
                 >
                   <div className="max-w-4xl max-h-[90vh] relative">
                     <img
-                      src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${post.image.path}`}
+                      src={getImageUrl(post)}
                       alt={post.title}
                       className="max-h-full max-w-full object-contain"
                     />
+                    <button 
+                      className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-70"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLightboxOpen(false);
+                      }}
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               )}

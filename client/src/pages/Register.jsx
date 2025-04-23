@@ -74,6 +74,15 @@ function Register() {
         return;
       }
 
+      // Validate student UID format if role is student
+      if (formData.role === "student") {
+        if (!formData.uid) {
+          setError("Student UID is required");
+          setLoading(false);
+          return;
+        }
+      }
+
       console.log("Submitting registration data:", formData);
       const result = await register(formData);
       console.log("Registration result:", result);
@@ -255,9 +264,9 @@ function Register() {
                   placeholder="Enter your Student UID"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Enter UID as shown on your library card
-                </p>
+                <div className="text-xs text-gray-500 mt-1">
+                  <p>Enter your Student UID exactly as shown on your library card.</p>
+                </div>
               </div>
             </>
           )}

@@ -110,6 +110,10 @@ function Profile() {
         console.log('Profile API response:', response);
 
         if (response.success) {
+          console.log('User data with year and UID:', {
+            year: response.user.year,
+            uid: response.user.uid
+          });
           setProfileData(response.user);
           setPosts(response.posts || []);
         } else {

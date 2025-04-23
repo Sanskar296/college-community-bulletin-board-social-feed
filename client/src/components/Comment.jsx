@@ -1,19 +1,30 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useContext } from "react"
 import { Link } from "react-router-dom"
 import { formatDistanceToNow } from "date-fns"
 import { FaArrowUp, FaArrowDown, FaReply, FaFlag } from "react-icons/fa"
+import ApiService from "../services"
+import { AuthContext } from "../context/AuthContext"
 
 function Comment({ comment, onReply, level = 0 }) {
-  const [votes, setVotes] = useState(comment.votes)
+  const { user } = useContext(AuthContext);
+  const [votes, setVotes] = useState(comment.votes || 0)
   const [voteStatus, setVoteStatus] = useState(comment.userVote || 0)
   const [showReplyForm, setShowReplyForm] = useState(false)
   const [replyContent, setReplyContent] = useState("")
+  const [error, setError] = useState(null)
 
   const maxLevel = 3 // Maximum nesting level
 
-  const handleVote = (newStatus) => {
+  const handleVote = async (newStatus) => {
+    if (!user) {
+      // Redirect to login or show login prompt
+      alert("You need to be logged in to vote");
+      return;
+    }
+    
+    // Optimistically update UI
     // Toggle vote if clicking the same button
     if (newStatus === voteStatus) {
       setVotes(votes - newStatus)
@@ -24,7 +35,23 @@ function Comment({ comment, onReply, level = 0 }) {
       setVoteStatus(newStatus)
     }
 
-    // Here you would make an API call to update the vote in the backend
+    try {
+      // Call API to update the vote
+      const response = await ApiService.voteComment(comment._id, newStatus);
+      
+      if (!response.success) {
+        // Revert UI changes on error
+        setVotes(votes);
+        setVoteStatus(voteStatus);
+        setError("Failed to update vote. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error voting on comment:", err);
+      // Revert UI changes on error
+      setVotes(votes);
+      setVoteStatus(voteStatus);
+      setError("Failed to update vote. Please try again.");
+    }
   }
 
   const handleReplySubmit = (e) => {
@@ -68,6 +95,13 @@ function Comment({ comment, onReply, level = 0 }) {
 
           {/* Comment text */}
           <div className="text-sm text-gray-800 mb-2">{comment.content}</div>
+
+          {/* Error message */}
+          {error && (
+            <div className="text-xs text-red-500 mb-2">
+              {error}
+            </div>
+          )}
 
           {/* Comment actions */}
           <div className="flex text-xs text-gray-500 mb-2">
