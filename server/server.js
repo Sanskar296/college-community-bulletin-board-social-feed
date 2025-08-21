@@ -173,10 +173,3 @@ process.on('unhandledRejection', (err) => {
   }
 });
 
-export default {
-  server: {
-    port: Number(process.env.PORT) || 5000,
-    host: '0.0.0.0', // to listen on all network interfaces
-  },
-};
-
